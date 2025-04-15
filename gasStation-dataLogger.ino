@@ -1,3 +1,7 @@
+#include <Adafruit_ADS1X15.h>
+
+Adafruit_ADS1115 ads;
+
 #define sensorPin 4
 
 #define liquidDensity 1  // 0.755 Gasoline
@@ -24,12 +28,17 @@ void setup()
   Serial.begin(115200);
 
   pinMode(sensorPin, INPUT);
+  ads.setGain(GAIN_ONE);
+  while (!ads.begin()) {
+    Serial.println("Failed to initialize ADS.");
+    delay(1000);
+  }
 }
 
 
 void loop() 
 {
-  pressure_signal = analogRead(sensorPin);
+  pressure_signal = ads.readADC_SingleEnded(0);
 
   pressure_voltage = (pressure_signal*Vref)/adc_ref;
 
