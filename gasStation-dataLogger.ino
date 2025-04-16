@@ -117,6 +117,13 @@ void connectToWiFi() {
 void connectToMQTT() {
   Serial.println("Connecting to MQTT...");
   while (!client.connected()) {
+
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("Wi-Fi disconnected during MQTT connection attempt.");
+      connectToWiFi();
+      Serial.println("Connecting to MQTT...");
+    }
+    
     if (client.connect(clientID, mqttUser, mqttPassword)) {
       Serial.println("Connected to MQTT");
     } else {
