@@ -1,6 +1,8 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Adafruit_ADS1X15.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 const char *ssid = "";
 const char *password = "";
@@ -14,6 +16,9 @@ const char* mqttTopic = "sensor/fuel_level";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600, 60000);
 
 Adafruit_ADS1115 ads;
 
@@ -38,6 +43,7 @@ float height;
 
 void connectToWiFi();
 void connectToMQTT();
+void synchronizeClock();
 float readFuelLevel();
 
 
@@ -57,6 +63,9 @@ void setup()
 
   client.setServer(mqttServer, mqttPort);
   connectToMQTT();
+
+  timeClient.begin();
+  synchronizeClock();
 }
 
 
@@ -75,11 +84,15 @@ void loop()
   
   client.loop();
 
+  timeClient.update();
+  String timestamp = timeClient.getFormattedTime();
+  Serial.print("Current time: " + timestamp + " | ");
+
   float fuelLevel = readFuelLevel();
   if (fuelLevel < 0) {fuelLevel = 0.0;}
 
-  char payload[10];
-  snprintf(payload, sizeof(payload), "%.2f", fuelLevel);
+  char payload[30];
+  snprintf(payload, sizeof(payload), "%.2f | %s", fuelLevel, timestamp.c_str());
 
   client.publish(mqttTopic, jsonPayload);
   Serial.println("Data published: " + String(payload));
@@ -113,6 +126,13 @@ void connectToMQTT() {
       delay(5000);
     }
   }
+}
+
+
+void synchronizeClock() {
+  Serial.println("Synchronizing clock with NTP server...");
+  timeClient.forceUpdate();
+  Serial.println("Clock synchronized. Current time: " + timeClient.getFormattedTime());
 }
 
 
