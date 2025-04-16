@@ -73,7 +73,19 @@ void loop()
     synchronizeClock();
   }
   
+  client.loop();
 
+  float fuelLevel = readFuelLevel();
+  if (fuelLevel < 0) {fuelLevel = 0.0;}
+
+  char payload[10];
+  snprintf(payload, sizeof(payload), "%.2f", fuelLevel);
+
+  client.publish(mqttTopic, jsonPayload);
+  Serial.println("Data published: " + String(payload));
+  Serial.println();
+
+  delay(10000);
 }
 
 
