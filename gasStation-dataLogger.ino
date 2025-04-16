@@ -1,8 +1,21 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
 #include <Adafruit_ADS1X15.h>
 
-Adafruit_ADS1115 ads;
+const char *ssid = "";
+const char *password = "";
+const char* mqttServer = "";
+const int mqttPort = 1883;
+const char* mqttUser = "";
+const char* mqttPassword = "";
+const char* clientID = "ESP32Client";
+// String clientID = "ESP32Client-" + String(random(0xffff), HEX);
+const char* mqttTopic = "sensor/fuel_level";
 
-#define sensorPin 4
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+Adafruit_ADS1115 ads;
 
 #define liquidDensity 1  // 0.755 Gasoline
 
@@ -12,7 +25,7 @@ Adafruit_ADS1115 ads;
 #define maxPressure_bar 1.5  // Range: 0.8 to 1.5 bar abs
 #define minPressure_bar 0.8  // Range: 0 to 0.5 bar rel??
 
-#define R 149
+#define R 149 
 #define minPressureSignal (0.004 * R * adc_ref / Vref)  // 0.64V
 #define maxPressureSignal (0.02 * R * adc_ref / Vref)  // 3.2V
 
@@ -23,21 +36,76 @@ float relPressure_bar;
 float height;
 
 
+void connectToWiFi();
+void connectToMQTT();
+float readFuelLevel();
+
+
 void setup() 
 {
   Serial.begin(115200);
 
-  pinMode(sensorPin, INPUT);
+  delay(10);
+
   ads.setGain(GAIN_ONE);
   while (!ads.begin()) {
     Serial.println("Failed to initialize ADS.");
     delay(1000);
   }
+
+  connectToWiFi();
+
+  client.setServer(mqttServer, mqttPort);
+  connectToMQTT();
 }
 
 
 void loop() 
 {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Wi-Fi disconnected.");
+    connectToWiFi();
+  }
+
+  if (!client.connected()) {
+    Serial.println("MQTT disconnected.");
+    connectToMQTT();
+    synchronizeClock();
+  }
+  
+
+}
+
+
+
+void connectToWiFi() {
+  Serial.print("Connecting to Wi-Fi");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(2000);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to Wi-Fi");
+}
+
+
+void connectToMQTT() {
+  Serial.println("Connecting to MQTT...");
+  while (!client.connected()) {
+    if (client.connect(clientID, mqttUser, mqttPassword)) {
+      Serial.println("Connected to MQTT");
+    } else {
+      Serial.print("Failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" Retrying in 5 seconds...");
+      delay(5000);
+    }
+  }
+}
+
+
+float readFuelLevel() {
+
   pressure_signal = ads.readADC_SingleEnded(0);
 
   pressure_voltage = (pressure_signal*Vref)/adc_ref;
@@ -57,12 +125,8 @@ void loop()
   Serial.print(" bar | Rel pressure: ");
   Serial.print(relPressure_bar);
   Serial.print(" bar | Height: ");
-  Serial.print(height, 5);
+  Serial.print(height);
   Serial.println(" m");
 
-  delay(3000);
+  return height;
 }
-
-
-
-
