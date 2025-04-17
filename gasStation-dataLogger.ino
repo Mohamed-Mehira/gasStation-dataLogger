@@ -3,6 +3,7 @@
 #include <Adafruit_ADS1X15.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <ArduinoJson.h>
 
 const char *ssid = "";
 const char *password = "";
@@ -10,8 +11,7 @@ const char* mqttServer = "";
 const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
-const char* clientID = "ESP32Client";
-// String clientID = "ESP32Client-" + String(random(0xffff), HEX);
+const char* clientID = "gasStation_dataLogger";
 const char* mqttTopic = "sensor/fuel_level";
 
 WiFiClient espClient;
@@ -19,6 +19,10 @@ PubSubClient client(espClient);
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600, 60000);
+
+const char* siteID = "GAS_STATION_001";
+const char* deviceID = "DL001";
+const char* type = "level";
 
 Adafruit_ADS1115 ads;
 
@@ -91,15 +95,24 @@ void loop()
   float fuelLevel = readFuelLevel();
   if (fuelLevel < 0) {fuelLevel = 0.0;}
 
-  char payload[30];
-  snprintf(payload, sizeof(payload), "%.2f | %s", fuelLevel, timestamp.c_str());
+  StaticJsonDocument<200> jsonDoc;
+  jsonDoc["ts"] = timeClient.getEpochTime();
+  jsonDoc["siteID"] = siteID;
+  jsonDoc["deviceID"] = deviceID;
+  jsonDoc["type"] = type;
+  JsonObject range = jsonDoc.createNestedObject("range");
+  range["level"] = fuelLevel;
+
+  char jsonPayload[200];
+  serializeJson(jsonDoc, jsonPayload);
 
   client.publish(mqttTopic, jsonPayload);
-  Serial.println("Data published: " + String(payload));
+  Serial.println("Data published: " + String(jsonPayload));
   Serial.println();
 
-  delay(10000);
+  delay(10000); // increasing the delay duration too much prevents client.loop() from executing in time and thus disconnecting from the mqtt broker
 }
+
 
 
 
@@ -123,7 +136,7 @@ void connectToMQTT() {
       connectToWiFi();
       Serial.println("Connecting to MQTT...");
     }
-    
+
     if (client.connect(clientID, mqttUser, mqttPassword)) {
       Serial.println("Connected to MQTT");
     } else {
@@ -164,7 +177,7 @@ float readFuelLevel() {
   Serial.print(" bar | Rel pressure: ");
   Serial.print(relPressure_bar);
   Serial.print(" bar | Height: ");
-  Serial.print(height);
+  Serial.print(height, 5);
   Serial.println(" m");
 
   return height;
