@@ -43,6 +43,8 @@ float pressure_voltage;
 float absPressure_bar;
 float relPressure_bar;
 float height;
+unsigned long previousMillis = 0;
+const long interval = 30000;
 
 
 void connectToWiFi();
@@ -88,29 +90,33 @@ void loop()
   
   client.loop();
 
-  timeClient.update();
-  String timestamp = timeClient.getFormattedTime();
-  Serial.print("Current time: " + timestamp + " | ");
+  unsigned long currentMillis = millis();
 
-  float fuelLevel = readFuelLevel();
-  if (fuelLevel < 0) {fuelLevel = 0.0;}
+  if ((currentMillis - previousMillis >= interval) or (previousMillis == 0)) {
+    previousMillis = currentMillis;
 
-  StaticJsonDocument<200> jsonDoc;
-  jsonDoc["ts"] = timeClient.getEpochTime();
-  jsonDoc["siteID"] = siteID;
-  jsonDoc["deviceID"] = deviceID;
-  jsonDoc["type"] = type;
-  JsonObject range = jsonDoc.createNestedObject("range");
-  range["level"] = fuelLevel;
+    timeClient.update();
+    String timestamp = timeClient.getFormattedTime();
+    Serial.print("Current time: " + timestamp + " | ");
 
-  char jsonPayload[200];
-  serializeJson(jsonDoc, jsonPayload);
+    float fuelLevel = readFuelLevel();
+    if (fuelLevel < 0) {fuelLevel = 0.0;}
 
-  client.publish(mqttTopic, jsonPayload);
-  Serial.println("Data published: " + String(jsonPayload));
-  Serial.println();
+    StaticJsonDocument<200> jsonDoc;
+    jsonDoc["ts"] = timeClient.getEpochTime();
+    jsonDoc["siteID"] = siteID;
+    jsonDoc["deviceID"] = deviceID;
+    jsonDoc["type"] = type;
+    JsonObject range = jsonDoc.createNestedObject("range");
+    range["level"] = fuelLevel;
 
-  delay(10000); // increasing the delay duration too much prevents client.loop() from executing in time and thus disconnecting from the mqtt broker
+    char jsonPayload[200];
+    serializeJson(jsonDoc, jsonPayload);
+
+    client.publish(mqttTopic, jsonPayload);
+    Serial.println("Data published: " + String(jsonPayload));
+    Serial.println();
+  }
 }
 
 
